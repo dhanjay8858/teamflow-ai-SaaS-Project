@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "TeamFlow AI Backend Server Infrastructure",
   "main": "dist/server.js",
+  "engines": {
+    "node": ">=20.0.0 <23.0.0"
+  },
   "scripts": {
     "build": "tsc",
     "start": "node dist/server.js",
