@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+coverage/
+e2e/
+playwright-report/
+test-results/
+*.log
+.git/
+.gitignore
+README.md

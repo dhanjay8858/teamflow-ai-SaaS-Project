@@ -1,0 +1,186 @@
+import React, { useState } from 'react';
+import { useProjects } from '../hooks/useProjects';
+import { useWorkspaceStore } from '../../../stores/workspace.store';
+import { ProjectVisibility } from '../../../types/project';
+import { X, FolderKanban, AlertCircle, RefreshCw } from 'lucide-react';
+
+interface CreateProjectModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+const COLOR_OPTIONS = ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#f43f5e'];
+
+export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ isOpen, onClose }) => {
+  const { currentWorkspace } = useWorkspaceStore();
+  const { createProject, isCreating, createError } = useProjects();
+
+  const [name, setName] = useState('');
+  const [slug, setSlug] = useState('');
+  const [description, setDescription] = useState('');
+  const [color, setColor] = useState(COLOR_OPTIONS[0]);
+  const [visibility, setVisibility] = useState<ProjectVisibility>(ProjectVisibility.WORKSPACE);
+  const [targetDate, setTargetDate] = useState('');
+  const [clientError, setClientError] = useState<string | null>(null);
+
+  if (!isOpen || !currentWorkspace) return null;
+
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setName(val);
+    setSlug(val.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, ''));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setClientError(null);
+
+    if (!name.trim() || !slug.trim()) {
+      setClientError('Project name and slug are required');
+      return;
+    }
+
+    try {
+      await createProject({
+        workspaceId: currentWorkspace._id,
+        name: name.trim(),
+        slug: slug.trim(),
+        description: description.trim(),
+        color,
+        visibility,
+        targetDate: targetDate || undefined,
+      });
+      onClose();
+      setName('');
+      setSlug('');
+      setDescription('');
+    } catch {
+      // Handled by createError
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-[#0e0e12] border border-zinc-800 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-5 relative">
+        <div className="flex items-center justify-between border-b border-zinc-800/80 pb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+              <FolderKanban className="h-4 w-4" />
+            </div>
+            <div>
+              <h3 className="text-base font-semibold text-white">Create New Project</h3>
+              <p className="text-xs text-zinc-400">Inside <span className="text-purple-400 font-medium">{currentWorkspace.name}</span></p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {(clientError || createError) && (
+          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center gap-2">
+            <AlertCircle className="h-4 w-4" />
+            <span>{clientError || createError?.message || 'Failed to create project'}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+          <div className="space-y-1.5">
+            <label className="font-medium text-zinc-300">Project Name</label>
+            <input
+              type="text"
+              required
+              value={name}
+              onChange={handleNameChange}
+              placeholder="e.g. Mobile App Redesign"
+              className="w-full bg-zinc-950/80 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="font-medium text-zinc-300">Project Slug Identifier</label>
+            <input
+              type="text"
+              required
+              value={slug}
+              onChange={(e) => setSlug(e.target.value)}
+              placeholder="e.g. mobile-app-redesign"
+              className="w-full bg-zinc-950/80 border border-zinc-800 rounded-xl px-3.5 py-2 text-xs font-mono text-indigo-400 focus:outline-none focus:border-indigo-500"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="font-medium text-zinc-300">Description</label>
+            <textarea
+              rows={2}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Brief description of the project goals..."
+              className="w-full bg-zinc-950/80 border border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
+            />
+          </div>
+
+          {/* Color Picker */}
+          <div className="space-y-1.5">
+            <label className="font-medium text-zinc-300">Project Theme Color</label>
+            <div className="flex items-center gap-2">
+              {COLOR_OPTIONS.map((c) => (
+                <button
+                  type="button"
+                  key={c}
+                  onClick={() => setColor(c)}
+                  className={`h-7 w-7 rounded-lg border transition-all ${
+                    color === c ? 'border-white scale-110 shadow-md' : 'border-transparent opacity-70 hover:opacity-100'
+                  }`}
+                  style={{ backgroundColor: c }}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="font-medium text-zinc-300">Visibility</label>
+              <select
+                value={visibility}
+                onChange={(e) => setVisibility(e.target.value as ProjectVisibility)}
+                className="w-full bg-zinc-950/80 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 cursor-pointer"
+              >
+                <option value={ProjectVisibility.WORKSPACE}>WORKSPACE (All Members)</option>
+                <option value={ProjectVisibility.PRIVATE}>PRIVATE (Members Only)</option>
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="font-medium text-zinc-300">Target Completion Date</label>
+              <input
+                type="date"
+                value={targetDate}
+                onChange={(e) => setTargetDate(e.target.value)}
+                className="w-full bg-zinc-950/80 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+          </div>
+
+          <div className="pt-2 flex items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 font-medium transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isCreating}
+              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-medium flex items-center gap-2 transition-colors disabled:opacity-50"
+            >
+              {isCreating ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : null}
+              <span>Create Project</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};

@@ -1,0 +1,127 @@
+# =============================================================================
+# TeamFlow AI — Docker Compose (Local Development)
+# =============================================================================
+# Usage:
+#   docker-compose up -d           # Start all services
+#   docker-compose up -d server    # Start backend only
+#   docker-compose down            # Stop all services
+#   docker-compose logs -f server  # Stream backend logs
+# =============================================================================
+
+name: teamflow-ai
+
+services:
+  # ---------------------------------------------------------------------------
+  # MongoDB — local development database
+  # ---------------------------------------------------------------------------
+  mongodb:
+    image: mongo:7.0
+    container_name: teamflow-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: teamflow
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping').ok", "--quiet"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - teamflow-net
+
+  # ---------------------------------------------------------------------------
+  # Redis — optional (set REDIS_ENABLED=true in .env to activate)
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7.2-alpine
+    container_name: teamflow-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - teamflow-net
+
+  # ---------------------------------------------------------------------------
+  # Backend — Express + TypeScript (hot reload in dev mode)
+  # ---------------------------------------------------------------------------
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+      target: builder        # Use builder stage for dev (has tsx)
+    container_name: teamflow-server
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    env_file:
+      - ./server/.env
+    environment:
+      NODE_ENV: development
+      PORT: 5000
+      MONGODB_URI: mongodb://mongodb:27017/teamflow
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    volumes:
+      - ./server/src:/app/src:ro   # Mount source for IDE integration
+    command: ["npx", "tsx", "watch", "src/server.ts"]
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:5000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - teamflow-net
+
+  # ---------------------------------------------------------------------------
+  # Frontend — Vite dev server
+  # ---------------------------------------------------------------------------
+  client:
+    image: node:20-alpine
+    container_name: teamflow-client
+    restart: unless-stopped
+    working_dir: /app
+    ports:
+      - "3000:3000"
+    environment:
+      VITE_API_BASE_URL: /api/v1
+      VITE_SOCKET_URL: http://localhost:5000
+    volumes:
+      - ./client:/app
+      - /app/node_modules          # Anonymous volume to isolate host node_modules
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    depends_on:
+      server:
+        condition: service_healthy
+    networks:
+      - teamflow-net
+
+# =============================================================================
+# Volumes & Networks
+# =============================================================================
+volumes:
+  mongodb_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  teamflow-net:
+    driver: bridge

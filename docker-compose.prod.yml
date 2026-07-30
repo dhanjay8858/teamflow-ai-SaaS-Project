@@ -1,0 +1,36 @@
+# =============================================================================
+# TeamFlow AI — Docker Compose Production Override
+# =============================================================================
+# Usage (with built images):
+#   docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# =============================================================================
+
+name: teamflow-ai-prod
+
+services:
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+      target: production         # Use production stage (minimal image)
+    command: ["node", "dist/server.js"]
+    volumes: []                  # No source volume mounts in production
+    environment:
+      NODE_ENV: production
+    restart: always
+
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+      target: production         # Use nginx production stage
+    volumes: []
+    restart: always
+
+  mongodb:
+    # In production, use MongoDB Atlas — disable local MongoDB service
+    profiles: ["local-db"]       # Only starts if explicitly requested
+
+  redis:
+    # In production, use Upstash Redis — disable local Redis service
+    profiles: ["local-cache"]    # Only starts if explicitly requested

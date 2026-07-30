@@ -1,0 +1,12 @@
+# Client Git Ignore Configuration
+.env
+.env.*
+!.env.example
+!.env.production
+
+node_modules/
+dist/
+coverage/
+playwright-report/
+test-results/
+*.log
