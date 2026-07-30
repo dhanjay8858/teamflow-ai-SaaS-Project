@@ -6,7 +6,7 @@
     "node": ">=20.0.0 <23.0.0"
   },
   "scripts": {
-    "build": "cd server && npm install && npm run build",
-    "start": "cd server && npm start"
+    "build": "cd server && npm ci --include=dev && npm run build",
+    "start": "cd server && node dist/server.js"
   }
 }
