@@ -46,7 +46,7 @@ services:
       # ── Client URL (your Vercel frontend domain) ─────────────
       # IMPORTANT: Update this to your actual Vercel URL after deploying frontend
       - key: CLIENT_URL
-        value: https://YOUR_VERCEL_APP.vercel.app
+        sync: false # Set this to your Vercel frontend URL (e.g., https://teamflow-ai-saa-s-project.vercel.app)
 
       # ── MongoDB Atlas (required) ──────────────────────────────
       - key: MONGODB_URI

@@ -5,6 +5,7 @@ import { NotificationList } from './NotificationList';
 import { useTaskUiStore } from '../../../stores/taskUi.store';
 import { apiClient } from '../../../config/api.client';
 import { AuthApiResponse } from '../../../types/auth';
+import { useNavigate } from 'react-router-dom';
 
 interface NotificationDropdownProps {
   onClose: () => void;
@@ -12,11 +13,21 @@ interface NotificationDropdownProps {
 
 export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ onClose }) => {
   const { openDrawer } = useTaskUiStore();
+  const navigate = useNavigate();
 
   const handleSelectNotification = async (notification: NotificationItemData) => {
     onClose();
 
-    // Deep linking logic
+    // Deep linking for Invitations
+    if (notification.entityType === NotificationEntityType.INVITATION) {
+      const token = notification.metadata?.token;
+      if (token && typeof token === 'string') {
+        navigate(`/invitations/accept?token=${token}`);
+        return;
+      }
+    }
+
+    // Deep linking logic for Tasks
     const taskId =
       notification.entityType === NotificationEntityType.TASK
         ? notification.entityId

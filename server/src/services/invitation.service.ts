@@ -10,13 +10,16 @@ import { AppError } from '../utils/appError.js';
 import { invitationEvents } from '../events/invitation.events.js';
 import { domainEventBus } from '../events/domainEventBus.js';
 import { DomainEventType } from '../types/activity.types.js';
+import { notificationService, NotificationService } from './notification.service.js';
+import { NotificationType, NotificationEntityType } from '../types/notification.types.js';
 
 export class WorkspaceInvitationService {
   constructor(
     private invRepo: WorkspaceInvitationRepository = workspaceInvitationRepository,
     private wsRepo: WorkspaceRepository = workspaceRepository,
     private userRepo: UserRepository = userRepository,
-    private memberService: MembershipService = membershipService
+    private memberService: MembershipService = membershipService,
+    private notifyService: NotificationService = notificationService
   ) {}
 
   private generateRawToken(): string {
@@ -92,6 +95,27 @@ export class WorkspaceInvitationService {
       email,
       role: invitation.role,
     });
+
+    if (existingUser) {
+      const inviter = await this.userRepo.findById(invitedByUserId);
+      if (inviter) {
+        await this.notifyService.createNotification({
+          recipient: existingUser._id,
+          actor: invitedByUserObjectId,
+          type: NotificationType.WORKSPACE_INVITED,
+          entityType: NotificationEntityType.INVITATION,
+          entityId: invitation._id.toString(),
+          title: 'Workspace Invitation',
+          message: `${inviter.name} invited you to join the workspace "${ws.name}"`,
+          workspace: ws._id,
+          metadata: {
+            invitationId: invitation._id.toString(),
+            token: rawToken,
+            role: payload.role || MembershipRole.MEMBER,
+          },
+        });
+      }
+    }
 
     return { invitation, rawToken };
   }
