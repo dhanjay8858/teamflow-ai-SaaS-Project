@@ -3,6 +3,8 @@ import { workspaceInvitationService, WorkspaceInvitationService } from '../servi
 import { ApiResponse } from '../utils/apiResponse.js';
 import { AppError } from '../utils/appError.js';
 
+import { env } from '../config/env.config.js';
+
 export class WorkspaceInvitationController {
   constructor(private service: WorkspaceInvitationService = workspaceInvitationService) {}
 
@@ -16,7 +18,7 @@ export class WorkspaceInvitationController {
         message: 'Workspace invitation created successfully',
         data: {
           invitation,
-          invitationLink: `${req.protocol}://${req.get('host')}/invitations/accept?token=${rawToken}`,
+          invitationLink: `${env.CLIENT_URL}/invitations/accept?token=${rawToken}`,
           token: rawToken,
         },
       });
