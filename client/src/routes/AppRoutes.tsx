@@ -32,10 +32,28 @@ import { RefreshCw } from 'lucide-react';
 // Smart root: logged-in users → /org (dashboard), others → health page
 const RootRedirector: React.FC = () => {
   const { isAuthenticated, isInitializing } = useAuthStore();
+  const [showSlowMessage, setShowSlowMessage] = React.useState(false);
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (isInitializing) {
+      timer = setTimeout(() => setShowSlowMessage(true), 5000);
+    }
+    return () => clearTimeout(timer);
+  }, [isInitializing]);
+
   if (isInitializing) {
     return (
       <div className="min-h-screen bg-[#09090b] flex items-center justify-center">
-        <RefreshCw className="h-8 w-8 text-indigo-500 animate-spin" />
+        <div className="flex flex-col items-center gap-4">
+          <RefreshCw className="h-8 w-8 text-indigo-500 animate-spin" />
+          {showSlowMessage && (
+            <p className="text-xs text-zinc-400 max-w-xs text-center animate-in fade-in duration-500">
+              Waking up the server...<br/>
+              <span className="text-[10px] text-zinc-500">This can take up to 50 seconds on the free tier.</span>
+            </p>
+          )}
+        </div>
       </div>
     );
   }
