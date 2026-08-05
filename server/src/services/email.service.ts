@@ -29,27 +29,28 @@ export class EmailService {
 
     if (user && pass) {
       try {
+        const port = env.SMTP_PORT || 587;
         if (host.includes('gmail') || user.endsWith('@gmail.com')) {
           this.transporter = nodemailer.createTransport({
             host: 'smtp.gmail.com',
-            port: 465,
-            secure: true,
+            port: 587,
+            secure: false, // STARTTLS on port 587 (Render compatible)
+            requireTLS: true,
             auth: { user, pass },
-            connectionTimeout: 10000,
-            greetingTimeout: 10000,
-            socketTimeout: 15000,
+            connectionTimeout: 15000,
+            greetingTimeout: 15000,
+            socketTimeout: 20000,
           });
-          logger.info(`📧 [EmailService] Gmail SMTP transporter initialized for ${user}`);
+          logger.info(`📧 [EmailService] Gmail STARTTLS transporter initialized for ${user} (port 587)`);
         } else {
-          const port = env.SMTP_PORT || 465;
           this.transporter = nodemailer.createTransport({
             host: env.SMTP_HOST || 'smtp.gmail.com',
             port,
             secure: port === 465,
             auth: { user, pass },
-            connectionTimeout: 10000,
-            greetingTimeout: 10000,
-            socketTimeout: 15000,
+            connectionTimeout: 15000,
+            greetingTimeout: 15000,
+            socketTimeout: 20000,
           });
           logger.info(`📧 [EmailService] Custom SMTP transporter initialized (${env.SMTP_HOST}:${port})`);
         }
