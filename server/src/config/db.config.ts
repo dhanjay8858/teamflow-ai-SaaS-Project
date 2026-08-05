@@ -18,9 +18,11 @@ export const connectDatabase = async (): Promise<void> => {
       logger.warn('🟡 MongoDB disconnected');
     });
 
-    await mongoose.connect(env.MONGODB_URI);
+    await mongoose.connect(env.MONGODB_URI, {
+      serverSelectionTimeoutMS: 5000,
+    });
   } catch (error) {
-    logger.error('❌ Database connection failure:', error);
+    logger.error('❌ Database connection failure. Please verify MONGODB_URI on Render and MongoDB Atlas Network Access (IP Whitelist 0.0.0.0/0):', error);
   }
 };
 

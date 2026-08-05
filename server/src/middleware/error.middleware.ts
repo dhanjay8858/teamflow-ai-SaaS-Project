@@ -51,6 +51,19 @@ export const errorHandler = (
     });
   }
 
+  // Handle Mongoose Connection / Buffering Timeout Errors
+  if (
+    err.name === 'MongooseError' ||
+    err.name === 'MongoServerSelectionError' ||
+    (err.message && (err.message.includes('buffering timed out') || err.message.includes('Server selection timed out')))
+  ) {
+    return ApiResponse.error({
+      res,
+      statusCode: 503,
+      message: 'Database connection failed. Please check MONGODB_URI on Render and ensure MongoDB Atlas Network Access allows 0.0.0.0/0.',
+    });
+  }
+
   // Fallback for generic server error
   const message = env.NODE_ENV === 'production' && !err.message
     ? 'Internal server error'
