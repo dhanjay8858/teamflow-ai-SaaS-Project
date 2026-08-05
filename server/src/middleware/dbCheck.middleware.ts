@@ -16,10 +16,10 @@ export const requireDatabaseConnection = async (req: Request, res: Response, nex
       connectDatabase().catch(() => {});
     }
 
-    // Poll for up to 4 seconds for readyState to become 1 (connected)
+    // Poll for up to 6 seconds for readyState to become 1 (connected)
     const startTime = Date.now();
-    while ((mongoose.connection.readyState as number) !== 1 && Date.now() - startTime < 4000) {
-      await new Promise((resolve) => setTimeout(resolve, 200));
+    while ((mongoose.connection.readyState as number) !== 1 && Date.now() - startTime < 6000) {
+      await new Promise((resolve) => setTimeout(resolve, 250));
     }
 
     if ((mongoose.connection.readyState as number) !== 1) {

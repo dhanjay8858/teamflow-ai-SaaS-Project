@@ -1,6 +1,22 @@
 import mongoose from 'mongoose';
+import dns from 'dns';
 import { env } from './env.config.js';
 import { logger } from '../utils/logger.js';
+
+// Force Node.js DNS resolver to prioritize IPv4 (fixes Render cloud IPv6 timeout issues)
+try {
+  dns.setDefaultResultOrder('ipv4first');
+} catch {
+  // Ignore in older node environments
+}
+
+const getFormattedUri = (uri: string): string => {
+  let formatted = uri.trim();
+  if (formatted.startsWith('mongodb+srv://') && !formatted.includes('?')) {
+    formatted += '?retryWrites=true&w=majority';
+  }
+  return formatted;
+};
 
 export const connectDatabase = async (retries = 5, delayMs = 2000): Promise<void> => {
   if (mongoose.connection.readyState === 1) return;
@@ -22,8 +38,10 @@ export const connectDatabase = async (retries = 5, delayMs = 2000): Promise<void
       });
     }
 
-    await mongoose.connect(env.MONGODB_URI, {
+    const uri = getFormattedUri(env.MONGODB_URI);
+    await mongoose.connect(uri, {
       serverSelectionTimeoutMS: 30000,
+      family: 4,
     });
   } catch (error) {
     logger.error(`❌ Database connection failure (retries left: ${retries}):`, error);
