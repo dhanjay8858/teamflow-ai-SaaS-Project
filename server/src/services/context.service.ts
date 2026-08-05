@@ -4,6 +4,7 @@ import { organizationRepository, OrganizationRepository } from '../repositories/
 import { workspaceRepository, WorkspaceRepository } from '../repositories/workspace.repository.js';
 import { membershipRepository, MembershipRepository } from '../repositories/membership.repository.js';
 import { userRepository, UserRepository } from '../repositories/user.repository.js';
+import { organizationService } from './organization.service.js';
 import { IOrganizationDocument, IWorkspaceDocument, IMembershipDocument } from '../types/organization.types.js';
 import { AppError } from '../utils/appError.js';
 
@@ -45,18 +46,38 @@ export class WorkspaceContextService {
     if (!targetOrg || !targetWs || !targetMembership) {
       const userMemberships = await this.memberRepo.findUserWorkspaceMemberships(userId);
       if (userMemberships.length === 0) {
-        throw AppError.notFound('User does not belong to any active workspaces. Please create or join an organization.');
+        // Auto-provision a default workspace context so user is never stranded on /org/create
+        const cleanName = (user.name || 'Personal').trim();
+        const baseSlug = (user.username || 'my').toLowerCase().replace(/[^a-z0-9]/g, '') || 'my';
+        let orgSlug = `${baseSlug}-space`;
+        const existingOrg = await this.orgRepo.findBySlug(orgSlug);
+        if (existingOrg) {
+          orgSlug = `${baseSlug}-space-${Date.now().toString().slice(-4)}`;
+        }
+
+        const { organization, defaultWorkspaceId } = await organizationService.createOrganization(userId, {
+          name: `${cleanName}'s Space`,
+          slug: orgSlug,
+          description: `Personal team space for ${cleanName}`,
+        });
+
+        targetOrg = organization;
+        targetWs = await this.wsRepo.findById(defaultWorkspaceId);
+        targetMembership = await this.memberRepo.findByUserAndWorkspace(userId, defaultWorkspaceId);
+        if (!targetWs || !targetMembership) throw AppError.notFound('Failed to auto-provision workspace context');
+
+        await this.contextRepo.updateUserLastContext(userId, targetOrg._id, targetWs._id);
+      } else {
+        targetMembership = userMemberships[0];
+        targetWs = await this.wsRepo.findById(targetMembership.workspace._id.toString());
+        if (!targetWs || targetWs.isArchived) throw AppError.notFound('Default workspace not found');
+
+        targetOrg = await this.orgRepo.findById(targetWs.organization.toString());
+        if (!targetOrg || targetOrg.isArchived) throw AppError.notFound('Organization not found');
+
+        // Update user preferences to fallback context
+        await this.contextRepo.updateUserLastContext(userId, targetOrg._id, targetWs._id);
       }
-
-      targetMembership = userMemberships[0];
-      targetWs = await this.wsRepo.findById(targetMembership.workspace._id.toString());
-      if (!targetWs || targetWs.isArchived) throw AppError.notFound('Default workspace not found');
-
-      targetOrg = await this.orgRepo.findById(targetWs.organization.toString());
-      if (!targetOrg || targetOrg.isArchived) throw AppError.notFound('Organization not found');
-
-      // Update user preferences to fallback context
-      await this.contextRepo.updateUserLastContext(userId, targetOrg._id, targetWs._id);
     }
 
     return {

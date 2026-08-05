@@ -52,7 +52,7 @@ export const RegisterPage: React.FC = () => {
 
     try {
       await register(formData);
-      navigate('/org/create');
+      navigate('/org');
     } catch {
       // Error handled via registerError state
     }

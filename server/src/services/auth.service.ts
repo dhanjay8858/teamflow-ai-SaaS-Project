@@ -5,6 +5,7 @@ import { IUserDocument, SanitizedUser, AuthTokens, JwtAccessPayload, JwtRefreshP
 import { env } from '../config/env.config.js';
 import { AppError } from '../utils/appError.js';
 import { uploadImage } from '../config/cloudinary.config.js';
+import { organizationService } from './organization.service.js';
 import { domainEventBus } from '../events/domainEventBus.js';
 import { DomainEventType } from '../types/activity.types.js';
 
@@ -68,6 +69,29 @@ export class AuthService {
       email: cleanEmail,
       username: cleanUsername,
     });
+
+    // Auto-create default personal space for seamless onboarding
+    try {
+      const cleanName = user.name.trim();
+      const baseSlug = user.username.toLowerCase().replace(/[^a-z0-9]/g, '') || 'my';
+      let orgSlug = `${baseSlug}-space`;
+
+      const { organization, defaultWorkspaceId } = await organizationService.createOrganization(user._id.toString(), {
+        name: `${cleanName}'s Space`,
+        slug: orgSlug,
+        description: `Personal team space for ${cleanName}`,
+      });
+
+      await this.userRepo.updateUser(user._id, {
+        lastOrganization: organization._id,
+        lastWorkspace: defaultWorkspaceId as any,
+      });
+      user.lastOrganization = organization._id;
+      user.lastWorkspace = defaultWorkspaceId as any;
+    } catch {
+      // Ignore if org creation fails, contextService will fallback auto-provision
+    }
+
     const tokens = this.generateTokens(user._id.toString(), user.email, user.role);
 
     const hashedRefreshToken = this.hashToken(tokens.refreshToken);
