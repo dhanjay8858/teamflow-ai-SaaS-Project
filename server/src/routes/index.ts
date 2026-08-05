@@ -18,6 +18,7 @@ import { agentRoutes } from '../ai/agents/routes/agent.routes.js';
 import { registerActivitySubscribers } from '../subscribers/activity.subscriber.js';
 import { registerNotificationSubscribers } from '../subscribers/notification.subscriber.js';
 import { registerIndexingSubscribers } from '../subscribers/indexing.subscriber.js';
+import { requireDatabaseConnection } from '../middleware/dbCheck.middleware.js';
 
 // Initialize domain event subscribers
 registerActivitySubscribers();
@@ -27,6 +28,10 @@ registerIndexingSubscribers();
 const apiRouter = Router();
 
 apiRouter.use('/health', healthRoutes);
+
+// Verify database connection for all domain API routes
+apiRouter.use(requireDatabaseConnection);
+
 apiRouter.use('/auth', authRoutes);
 apiRouter.use('/organizations', organizationRoutes);
 apiRouter.use('/workspaces', workspaceRoutes);
