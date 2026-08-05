@@ -20,12 +20,24 @@ export const errorHandler = (
     });
   }
 
-  // Handle Mongoose Duplicate Key Error
-  if ('code' in err && (err as { code?: number }).code === 11000) {
+  // Handle Mongoose / MongoDB Duplicate Key Error (E11000)
+  const isDuplicateKey =
+    ('code' in err && (err as any).code == 11000) ||
+    (err.message && err.message.includes('E11000'));
+
+  if (isDuplicateKey) {
+    const isEmail = err.message && err.message.includes('email');
+    const isUsername = err.message && err.message.includes('username');
+    const fieldMsg = isEmail
+      ? 'An account with this email address already exists'
+      : isUsername
+      ? 'This username is already taken'
+      : 'An account with this email address or username already exists';
+
     return ApiResponse.error({
       res,
       statusCode: 409,
-      message: 'Duplicate field value entered',
+      message: fieldMsg,
     });
   }
 
@@ -34,13 +46,16 @@ export const errorHandler = (
     return ApiResponse.error({
       res,
       statusCode: 400,
-      message: 'Database Validation Failed',
+      message: err.message || 'Database Validation Failed',
       errors: err.message,
     });
   }
 
   // Fallback for generic server error
-  const message = env.NODE_ENV === 'production' ? 'Internal server error' : err.message;
+  const message = env.NODE_ENV === 'production' && !err.message
+    ? 'Internal server error'
+    : err.message || 'Internal server error';
+
   return ApiResponse.error({
     res,
     statusCode: 500,

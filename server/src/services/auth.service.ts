@@ -49,17 +49,25 @@ export class AuthService {
   }
 
   public async register(payload: { name: string; username: string; email: string; password: string }): Promise<{ user: SanitizedUser; tokens: AuthTokens }> {
-    const existingEmail = await this.userRepo.findByEmail(payload.email);
+    const cleanEmail = payload.email.toLowerCase().trim();
+    const cleanUsername = payload.username.toLowerCase().trim();
+
+    const existingEmail = await this.userRepo.findByEmail(cleanEmail);
     if (existingEmail) {
       throw AppError.conflict('An account with this email address already exists');
     }
 
-    const existingUsername = await this.userRepo.findByUsername(payload.username);
+    const existingUsername = await this.userRepo.findByUsername(cleanUsername);
     if (existingUsername) {
       throw AppError.conflict('This username is already taken');
     }
 
-    const user = await this.userRepo.create(payload);
+    const user = await this.userRepo.create({
+      ...payload,
+      name: payload.name.trim(),
+      email: cleanEmail,
+      username: cleanUsername,
+    });
     const tokens = this.generateTokens(user._id.toString(), user.email, user.role);
 
     const hashedRefreshToken = this.hashToken(tokens.refreshToken);

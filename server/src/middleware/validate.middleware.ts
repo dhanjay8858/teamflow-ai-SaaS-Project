@@ -5,11 +5,14 @@ import { ApiResponse } from '../utils/apiResponse.js';
 export const validateRequest = (schema: AnyZodObject) => {
   return async (req: Request, res: Response, next: NextFunction): Promise<void | Response> => {
     try {
-      await schema.parseAsync({
+      const parsed = await schema.parseAsync({
         body: req.body,
         query: req.query,
         params: req.params,
       });
+      if (parsed.body) req.body = parsed.body;
+      if (parsed.query) req.query = parsed.query as any;
+      if (parsed.params) req.params = parsed.params as any;
       return next();
     } catch (error) {
       if (error instanceof ZodError) {
