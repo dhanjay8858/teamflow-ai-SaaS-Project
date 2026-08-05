@@ -59,10 +59,11 @@ export class WorkspaceInvitationController {
     try {
       if (!req.user?.userId) throw AppError.unauthorized();
 
-      await this.service.acceptInvitation(req.params.token, req.user.userId);
+      const { organizationSlug, workspaceSlug } = await this.service.acceptInvitation(req.params.token, req.user.userId);
       return ApiResponse.success({
         res,
         message: 'Invitation accepted successfully. Workspace membership activated.',
+        data: { organizationSlug, workspaceSlug },
       });
     } catch (error) {
       return next(error);

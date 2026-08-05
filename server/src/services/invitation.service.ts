@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { Types } from 'mongoose';
 import { workspaceInvitationRepository, WorkspaceInvitationRepository } from '../repositories/invitation.repository.js';
 import { workspaceRepository, WorkspaceRepository } from '../repositories/workspace.repository.js';
+import { organizationRepository } from '../repositories/organization.repository.js';
 import { userRepository, UserRepository } from '../repositories/user.repository.js';
 import { membershipService, MembershipService } from './membership.service.js';
 import { IWorkspaceInvitationDocument, InvitationStatus } from '../types/invitation.types.js';
@@ -12,6 +13,8 @@ import { domainEventBus } from '../events/domainEventBus.js';
 import { DomainEventType } from '../types/activity.types.js';
 import { notificationService, NotificationService } from './notification.service.js';
 import { NotificationType, NotificationEntityType } from '../types/notification.types.js';
+import { emailService } from './email.service.js';
+import { env } from '../config/env.config.js';
 
 export class WorkspaceInvitationService {
   constructor(
@@ -74,6 +77,25 @@ export class WorkspaceInvitationService {
       expiresAt,
     });
 
+    const acceptUrl = `${env.CLIENT_URL}/invitations/accept?token=${rawToken}`;
+    const inviter = await this.userRepo.findById(invitedByUserId);
+    const org = await organizationRepository.findById(ws.organization);
+
+    // Dispatch Email Notification directly to recipient's Gmail via Nodemailer
+    try {
+      await emailService.sendWorkspaceInvitation({
+        toEmail: email,
+        inviterName: inviter?.name || 'A team member',
+        workspaceName: ws.name,
+        organizationName: org?.name || 'TeamFlow AI',
+        role: invitation.role,
+        acceptUrl,
+        expiresAt,
+      });
+    } catch {
+      // Non-blocking fallback
+    }
+
     // Emit internal event for email delivery queue plugins
     invitationEvents.emit('invitation.created', {
       invitationId: invitation._id.toString(),
@@ -97,7 +119,6 @@ export class WorkspaceInvitationService {
     });
 
     if (existingUser) {
-      const inviter = await this.userRepo.findById(invitedByUserId);
       if (inviter) {
         await this.notifyService.createNotification({
           recipient: existingUser._id,
@@ -144,7 +165,7 @@ export class WorkspaceInvitationService {
     return invitation;
   }
 
-  public async acceptInvitation(rawToken: string, acceptingUserId: string): Promise<void> {
+  public async acceptInvitation(rawToken: string, acceptingUserId: string): Promise<{ organizationSlug: string; workspaceSlug: string }> {
     const invitation = await this.validateInvitationToken(rawToken);
 
     // Automatically create workspace membership using MembershipService
@@ -155,6 +176,12 @@ export class WorkspaceInvitationService {
       acceptedAt: new Date(),
     });
 
+    // Automatically set user's active context to the newly joined organization and workspace
+    await this.userRepo.updateUser(acceptingUserId, {
+      lastOrganization: invitation.organization._id,
+      lastWorkspace: invitation.workspace._id,
+    });
+
     // Publish Domain Event
     domainEventBus.publish(DomainEventType.INVITATION_ACCEPTED, {
       invitationId: invitation._id.toString(),
@@ -163,6 +190,14 @@ export class WorkspaceInvitationService {
       acceptingUserId,
       email: invitation.email,
     });
+
+    const org = await organizationRepository.findById(invitation.organization._id);
+    const ws = await this.wsRepo.findById(invitation.workspace._id);
+
+    return {
+      organizationSlug: org?.slug || '',
+      workspaceSlug: ws?.slug || 'general',
+    };
   }
 
   public async declineInvitation(rawToken: string): Promise<void> {

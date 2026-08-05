@@ -23,6 +23,13 @@ const envSchema = z.object({
   CLOUDINARY_API_KEY: z.string().optional(),
   CLOUDINARY_API_SECRET: z.string().optional(),
 
+  // ── SMTP / Email Notifications ─────────────────────────────────────────────
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.string().transform((val) => parseInt(val, 10)).optional().default('587'),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  SMTP_FROM: z.string().default('TeamFlow AI <no-reply@teamflow-ai.com>'),
+
   // ── Redis ──────────────────────────────────────────────────────────────────
   REDIS_ENABLED: z.string().transform((val) => val === 'true').default('false'),
   REDIS_URL: z.string().optional(),

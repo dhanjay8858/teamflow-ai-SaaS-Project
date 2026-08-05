@@ -1,14 +1,18 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { Mail, Lock, ArrowRight, AlertCircle, RefreshCw, Eye, EyeOff } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirectUrl = searchParams.get('redirect');
+  const emailParam = searchParams.get('email') || '';
+
   const { login, isLoggingIn, loginError } = useAuth();
 
   const [formData, setFormData] = useState({
-    emailOrUsername: '',
+    emailOrUsername: emailParam,
     password: '',
   });
 
@@ -30,7 +34,7 @@ export const LoginPage: React.FC = () => {
 
     try {
       await login(formData);
-      navigate('/org');
+      navigate(redirectUrl || '/org');
     } catch {
       // Error handled via loginError state
     }

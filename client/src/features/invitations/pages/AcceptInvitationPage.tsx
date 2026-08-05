@@ -19,13 +19,18 @@ export const AcceptInvitationPage: React.FC = () => {
 
   const handleAccept = async () => {
     if (!isAuthenticated) {
-      navigate(`/auth/login?redirect=/invitations/accept?token=${token}`);
+      navigate(`/auth/register?email=${encodeURIComponent(invitation?.email || '')}&redirect=${encodeURIComponent(`/invitations/accept?token=${token}`)}`);
       return;
     }
 
     try {
-      await acceptInvitation(token);
-      navigate('/org/settings');
+      const result = await acceptInvitation(token);
+      const data = result?.data as any;
+      if (data?.organizationSlug && data?.workspaceSlug) {
+        navigate(`/org/${data.organizationSlug}/workspace/${data.workspaceSlug}/projects`, { replace: true });
+      } else {
+        navigate('/org', { replace: true });
+      }
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to accept invitation');
     }
@@ -81,6 +86,10 @@ export const AcceptInvitationPage: React.FC = () => {
                 <span>Workspace</span>
                 <span className="text-white font-medium">{invitation.workspace.name}</span>
               </div>
+              <div className="flex items-center justify-between text-zinc-400">
+                <span>Invited Email</span>
+                <span className="text-indigo-300 font-medium">{invitation.email}</span>
+              </div>
             </div>
 
             {errorMsg && (
@@ -90,24 +99,42 @@ export const AcceptInvitationPage: React.FC = () => {
               </div>
             )}
 
-            <button
-              onClick={handleAccept}
-              disabled={isAccepting}
-              className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-indigo-600 hover:from-emerald-500 hover:to-indigo-500 text-white font-medium text-sm shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
-            >
-              {isAccepting ? (
-                <>
-                  <RefreshCw className="h-4 w-4 animate-spin" />
-                  <span>Activating Membership...</span>
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="h-4 w-4" />
-                  <span>Accept Invitation & Join</span>
+            {isAuthenticated ? (
+              <button
+                onClick={handleAccept}
+                disabled={isAccepting}
+                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-indigo-600 hover:from-emerald-500 hover:to-indigo-500 text-white font-medium text-sm shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+              >
+                {isAccepting ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    <span>Activating Membership...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-4 w-4" />
+                    <span>Accept Invitation & Join</span>
+                    <ArrowRight className="h-4 w-4" />
+                  </>
+                )}
+              </button>
+            ) : (
+              <div className="space-y-3">
+                <button
+                  onClick={() => navigate(`/auth/register?email=${encodeURIComponent(invitation.email)}&redirect=${encodeURIComponent(`/invitations/accept?token=${token}`)}`)}
+                  className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-medium text-sm shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2 transition-all"
+                >
+                  <span>Create Account to Join</span>
                   <ArrowRight className="h-4 w-4" />
-                </>
-              )}
-            </button>
+                </button>
+                <button
+                  onClick={() => navigate(`/auth/login?email=${encodeURIComponent(invitation.email)}&redirect=${encodeURIComponent(`/invitations/accept?token=${token}`)}`)}
+                  className="w-full py-2.5 px-4 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-xs font-medium transition-all"
+                >
+                  Already have an account? Sign In
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

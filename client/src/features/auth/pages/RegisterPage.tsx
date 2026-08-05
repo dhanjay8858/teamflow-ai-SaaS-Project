@@ -1,16 +1,20 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { User as UserIcon, AtSign, Mail, Lock, ArrowRight, AlertCircle, RefreshCw, Eye, EyeOff } from 'lucide-react';
 
 export const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirectUrl = searchParams.get('redirect');
+  const emailParam = searchParams.get('email') || '';
+
   const { register, isRegistering, registerError } = useAuth();
 
   const [formData, setFormData] = useState({
     name: '',
     username: '',
-    email: '',
+    email: emailParam,
     password: '',
   });
 
@@ -52,7 +56,7 @@ export const RegisterPage: React.FC = () => {
 
     try {
       await register(formData);
-      navigate('/org');
+      navigate(redirectUrl || '/org');
     } catch {
       // Error handled via registerError state
     }
