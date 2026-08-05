@@ -22,13 +22,14 @@ export class EmailService {
   private initTransporter(): void {
     if (env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS) {
       try {
+        const cleanPass = env.SMTP_PASS.replace(/\s+/g, '');
         this.transporter = nodemailer.createTransport({
           host: env.SMTP_HOST,
           port: env.SMTP_PORT || 587,
           secure: env.SMTP_PORT === 465,
           auth: {
-            user: env.SMTP_USER,
-            pass: env.SMTP_PASS,
+            user: env.SMTP_USER.trim(),
+            pass: cleanPass,
           },
         });
         logger.info(`📧 [EmailService] SMTP transporter initialized (${env.SMTP_HOST})`);
@@ -142,8 +143,13 @@ export class EmailService {
 
     if (this.transporter) {
       try {
+        let fromHeader = (env.SMTP_FROM || '').trim();
+        if (!fromHeader.includes('<') && env.SMTP_USER) {
+          fromHeader = `TeamFlow AI <${env.SMTP_USER.trim()}>`;
+        }
+
         await this.transporter.sendMail({
-          from: env.SMTP_FROM,
+          from: fromHeader,
           to: toEmail,
           subject: `You've been invited to join ${workspaceName} on TeamFlow AI`,
           html: htmlContent,
