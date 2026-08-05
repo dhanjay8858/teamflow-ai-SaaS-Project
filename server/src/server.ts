@@ -1,7 +1,11 @@
+import dns from 'dns';
 import http from 'http';
 import { createApp } from './app.js';
 import { env } from './config/env.config.js';
 import { connectDatabase, closeDatabase } from './config/db.config.js';
+
+// Force IPv4 DNS lookup order to prevent IPv6 socket timeouts on Linux/Render instances
+dns.setDefaultResultOrder('ipv4first');
 import { initCloudinary } from './config/cloudinary.config.js';
 import { initRedis, closeRedis } from './config/redis.config.js';
 import { SocketServer } from './socket/socket.server.js';

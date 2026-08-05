@@ -1,6 +1,9 @@
+import dns from 'dns';
 import nodemailer from 'nodemailer';
 import { env } from '../config/env.config.js';
 import { logger } from '../utils/logger.js';
+
+dns.setDefaultResultOrder('ipv4first');
 
 export interface SendInvitationEmailPayload {
   toEmail: string;
@@ -28,18 +31,27 @@ export class EmailService {
       try {
         if (host.includes('gmail') || user.endsWith('@gmail.com')) {
           this.transporter = nodemailer.createTransport({
-            service: 'gmail',
+            host: 'smtp.gmail.com',
+            port: 465,
+            secure: true,
             auth: { user, pass },
+            connectionTimeout: 10000,
+            greetingTimeout: 10000,
+            socketTimeout: 15000,
           });
           logger.info(`📧 [EmailService] Gmail SMTP transporter initialized for ${user}`);
         } else {
+          const port = env.SMTP_PORT || 465;
           this.transporter = nodemailer.createTransport({
             host: env.SMTP_HOST || 'smtp.gmail.com',
-            port: env.SMTP_PORT || 465,
-            secure: env.SMTP_PORT === 465 || !env.SMTP_PORT,
+            port,
+            secure: port === 465,
             auth: { user, pass },
+            connectionTimeout: 10000,
+            greetingTimeout: 10000,
+            socketTimeout: 15000,
           });
-          logger.info(`📧 [EmailService] Custom SMTP transporter initialized (${env.SMTP_HOST})`);
+          logger.info(`📧 [EmailService] Custom SMTP transporter initialized (${env.SMTP_HOST}:${port})`);
         }
       } catch (err: any) {
         logger.error(`❌ [EmailService] Failed to initialize SMTP transporter: ${err.message}`);
