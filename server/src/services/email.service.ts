@@ -64,7 +64,64 @@ export class EmailService {
     }
   }
 
+  private async sendViaResend(to: string, subject: string, html: string, apiKey: string): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    try {
+      const fromHeader = (env.SMTP_FROM || process.env.SMTP_FROM || 'TeamFlow AI <onboarding@resend.dev>').trim();
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: fromHeader.includes('<') ? fromHeader : `TeamFlow AI <${fromHeader}>`,
+          to: [to],
+          subject,
+          html,
+        }),
+      });
+
+      const resData = (await response.json()) as any;
+      if (!response.ok) {
+        return { success: false, error: resData.message || resData.error || resData.name || `HTTP ${response.status}` };
+      }
+      return { success: true, messageId: resData.id };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  }
+
   public async sendTestEmail(toEmail: string): Promise<{ success: boolean; message: string; details?: any }> {
+    const resendKey = env.RESEND_API_KEY || process.env.RESEND_API_KEY || '';
+    if (resendKey) {
+      const resendResult = await this.sendViaResend(
+        toEmail,
+        '⚡ TeamFlow AI — Email Delivery Test (Resend HTTPS)',
+        `
+          <div style="padding: 24px; background-color: #0e0e12; color: #ffffff; font-family: sans-serif; border-radius: 12px;">
+            <h2 style="color: #6366f1; margin-top: 0;">⚡ TeamFlow AI Diagnostic Email</h2>
+            <p>If you are reading this email in your inbox, your <strong>Resend HTTPS API</strong> email integration is <strong>100% VERIFIED & WORKING!</strong> 🎉</p>
+            <p style="color: #a1a1aa; font-size: 13px;">Target recipient: ${toEmail}</p>
+          </div>
+        `,
+        resendKey
+      );
+
+      if (resendResult.success) {
+        return {
+          success: true,
+          message: `Test email sent successfully via Resend HTTPS API to ${toEmail}! Check your inbox.`,
+          details: resendResult,
+        };
+      } else {
+        return {
+          success: false,
+          message: `Resend HTTPS API Error: ${resendResult.error}`,
+          details: resendResult,
+        };
+      }
+    }
+
     this.initTransporter();
 
     const user = (env.SMTP_USER || process.env.SMTP_USER || '').trim();
@@ -73,7 +130,7 @@ export class EmailService {
     if (!user || !pass) {
       return {
         success: false,
-        message: `SMTP Credentials Missing in Environment Variables. SMTP_USER='${user || 'NOT_SET'}', SMTP_PASS is ${pass ? 'SET' : 'NOT_SET'}`,
+        message: `SMTP Credentials Missing in Environment Variables. SMTP_USER='${user || 'NOT_SET'}', SMTP_PASS is ${pass ? 'SET' : 'NOT_SET'}. NOTE: On cloud hosts like Render, direct SMTP ports (465/587) are firewalled. Add RESEND_API_KEY from https://resend.com for instant HTTPS email delivery.`,
         details: { user, passConfigured: !!pass },
       };
     }
@@ -113,7 +170,7 @@ export class EmailService {
       logger.error(`❌ [EmailService] Test email failed: ${err.message}`);
       return {
         success: false,
-        message: `Nodemailer SMTP Error: ${err.message}`,
+        message: `Nodemailer SMTP Error: ${err.message}. Render blocks outbound TCP ports 465/587 to consumer Gmail. Please add RESEND_API_KEY from https://resend.com to send emails over HTTPS.`,
         details: { code: err.code, command: err.command, response: err.response },
       };
     }
@@ -217,6 +274,18 @@ export class EmailService {
 
     // Log formatted output to logger for instant developer visibility
     logger.info(`✉️ [Invitation Email] To: ${toEmail} | Accept URL: ${acceptUrl}`);
+
+    const resendKey = env.RESEND_API_KEY || process.env.RESEND_API_KEY || '';
+    if (resendKey) {
+      const subject = `You've been invited to join ${workspaceName} on TeamFlow AI`;
+      const res = await this.sendViaResend(toEmail, subject, htmlContent, resendKey);
+      if (res.success) {
+        logger.info(`✅ [EmailService] Invitation email delivered via Resend HTTPS API to ${toEmail} (Id: ${res.messageId})`);
+        return true;
+      } else {
+        logger.error(`❌ [EmailService] Resend API invitation delivery failed: ${res.error}`);
+      }
+    }
 
     if (!this.transporter) {
       this.initTransporter();
