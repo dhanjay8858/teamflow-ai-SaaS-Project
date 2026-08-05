@@ -15,6 +15,7 @@ import { notificationService, NotificationService } from './notification.service
 import { NotificationType, NotificationEntityType } from '../types/notification.types.js';
 import { emailService } from './email.service.js';
 import { env } from '../config/env.config.js';
+import { logger } from '../utils/logger.js';
 
 export class WorkspaceInvitationService {
   constructor(
@@ -92,8 +93,8 @@ export class WorkspaceInvitationService {
         acceptUrl,
         expiresAt,
       });
-    } catch {
-      // Non-blocking fallback
+    } catch (emailErr: any) {
+      logger.error(`⚠️ [createInvitation] Email delivery exception for ${email}: ${emailErr?.message || emailErr}`);
     }
 
     // Emit internal event for email delivery queue plugins

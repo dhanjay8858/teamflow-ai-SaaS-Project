@@ -20,19 +20,27 @@ export class EmailService {
   }
 
   private initTransporter(): void {
-    if (env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS) {
+    const host = (env.SMTP_HOST || '').toLowerCase();
+    const user = (env.SMTP_USER || '').trim();
+    const pass = (env.SMTP_PASS || '').replace(/\s+/g, '');
+
+    if (user && pass) {
       try {
-        const cleanPass = env.SMTP_PASS.replace(/\s+/g, '');
-        this.transporter = nodemailer.createTransport({
-          host: env.SMTP_HOST,
-          port: env.SMTP_PORT || 587,
-          secure: env.SMTP_PORT === 465,
-          auth: {
-            user: env.SMTP_USER.trim(),
-            pass: cleanPass,
-          },
-        });
-        logger.info(`📧 [EmailService] SMTP transporter initialized (${env.SMTP_HOST})`);
+        if (host.includes('gmail') || user.endsWith('@gmail.com')) {
+          this.transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: { user, pass },
+          });
+          logger.info(`📧 [EmailService] Gmail SMTP transporter initialized for ${user}`);
+        } else {
+          this.transporter = nodemailer.createTransport({
+            host: env.SMTP_HOST || 'smtp.gmail.com',
+            port: env.SMTP_PORT || 465,
+            secure: env.SMTP_PORT === 465 || !env.SMTP_PORT,
+            auth: { user, pass },
+          });
+          logger.info(`📧 [EmailService] Custom SMTP transporter initialized (${env.SMTP_HOST})`);
+        }
       } catch (err: any) {
         logger.error(`❌ [EmailService] Failed to initialize SMTP transporter: ${err.message}`);
         this.transporter = null;
@@ -141,6 +149,10 @@ export class EmailService {
     // Log formatted output to logger for instant developer visibility
     logger.info(`✉️ [Invitation Email] To: ${toEmail} | Accept URL: ${acceptUrl}`);
 
+    if (!this.transporter) {
+      this.initTransporter();
+    }
+
     if (this.transporter) {
       try {
         let fromHeader = (env.SMTP_FROM || '').trim();
@@ -148,13 +160,13 @@ export class EmailService {
           fromHeader = `TeamFlow AI <${env.SMTP_USER.trim()}>`;
         }
 
-        await this.transporter.sendMail({
+        const info = await this.transporter.sendMail({
           from: fromHeader,
           to: toEmail,
           subject: `You've been invited to join ${workspaceName} on TeamFlow AI`,
           html: htmlContent,
         });
-        logger.info(`✅ [EmailService] Invitation email delivered successfully to ${toEmail}`);
+        logger.info(`✅ [EmailService] Invitation email delivered successfully to ${toEmail} (Id: ${info.messageId})`);
         return true;
       } catch (err: any) {
         logger.error(`❌ [EmailService] Failed to send email to ${toEmail}: ${err.message}`);
