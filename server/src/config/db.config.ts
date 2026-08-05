@@ -18,7 +18,9 @@ const getFormattedUri = (uri: string): string => {
   return formatted;
 };
 
-export const connectDatabase = async (retries = 5, delayMs = 2000): Promise<void> => {
+export let mongoAuthError = false;
+
+export const connectDatabase = async (retries = 3, delayMs = 2000): Promise<void> => {
   if (mongoose.connection.readyState === 1) return;
 
   try {
@@ -26,11 +28,17 @@ export const connectDatabase = async (retries = 5, delayMs = 2000): Promise<void
 
     if (!mongoose.connection.listeners('connected').length) {
       mongoose.connection.on('connected', () => {
+        mongoAuthError = false;
         logger.info('🟢 MongoDB connection established successfully');
       });
 
-      mongoose.connection.on('error', (err) => {
-        logger.error('🔴 MongoDB connection error:', err);
+      mongoose.connection.on('error', (err: any) => {
+        if (err?.message?.includes('bad auth') || err?.code === 8000) {
+          mongoAuthError = true;
+          logger.error('❌ MongoDB Atlas Authentication Failed: Incorrect database username or password.');
+        } else {
+          logger.error('🔴 MongoDB connection error:', err);
+        }
       });
 
       mongoose.connection.on('disconnected', () => {
@@ -40,10 +48,17 @@ export const connectDatabase = async (retries = 5, delayMs = 2000): Promise<void
 
     const uri = getFormattedUri(env.MONGODB_URI);
     await mongoose.connect(uri, {
-      serverSelectionTimeoutMS: 30000,
+      serverSelectionTimeoutMS: 15000,
       family: 4,
     });
-  } catch (error) {
+    mongoAuthError = false;
+  } catch (error: any) {
+    if (error?.message?.includes('bad auth') || error?.code === 8000 || error?.errorResponse?.code === 8000) {
+      mongoAuthError = true;
+      logger.error('❌ MongoDB Atlas Authentication Failed: Bad auth. Please reset your database user password in MongoDB Atlas -> Database Access and update MONGODB_URI.');
+      return; // Do not retry if credentials are wrong
+    }
+
     logger.error(`❌ Database connection failure (retries left: ${retries}):`, error);
     if (retries > 0) {
       logger.info(`🔄 Retrying MongoDB connection in ${delayMs / 1000}s...`);

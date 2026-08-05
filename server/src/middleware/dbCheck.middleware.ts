@@ -1,12 +1,20 @@
 import { Request, Response, NextFunction } from 'express';
 import mongoose from 'mongoose';
 import { ApiResponse } from '../utils/apiResponse.js';
-import { connectDatabase } from '../config/db.config.js';
+import { connectDatabase, mongoAuthError } from '../config/db.config.js';
 
 export const requireDatabaseConnection = async (req: Request, res: Response, next: NextFunction): Promise<void | Response> => {
   // Allow health checks even if DB is disconnected
   if (req.path.startsWith('/health') || req.path.startsWith('/live') || req.path.startsWith('/ready')) {
     return next();
+  }
+
+  if (mongoAuthError) {
+    return ApiResponse.error({
+      res,
+      statusCode: 500,
+      message: 'MongoDB Atlas Authentication Failed: Incorrect database username or password. Please reset password in MongoDB Atlas (Database Access) and update MONGODB_URI on Render.',
+    });
   }
 
   // readyState: 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
@@ -18,8 +26,16 @@ export const requireDatabaseConnection = async (req: Request, res: Response, nex
 
     // Poll for up to 6 seconds for readyState to become 1 (connected)
     const startTime = Date.now();
-    while ((mongoose.connection.readyState as number) !== 1 && Date.now() - startTime < 6000) {
+    while ((mongoose.connection.readyState as number) !== 1 && !mongoAuthError && Date.now() - startTime < 6000) {
       await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+
+    if (mongoAuthError) {
+      return ApiResponse.error({
+        res,
+        statusCode: 500,
+        message: 'MongoDB Atlas Authentication Failed: Incorrect database username or password. Please reset password in MongoDB Atlas (Database Access) and update MONGODB_URI on Render.',
+      });
     }
 
     if ((mongoose.connection.readyState as number) !== 1) {
