@@ -2,27 +2,36 @@ import mongoose from 'mongoose';
 import { env } from './env.config.js';
 import { logger } from '../utils/logger.js';
 
-export const connectDatabase = async (): Promise<void> => {
+export const connectDatabase = async (retries = 5, delayMs = 2000): Promise<void> => {
+  if (mongoose.connection.readyState === 1) return;
+
   try {
     mongoose.set('strictQuery', true);
 
-    mongoose.connection.on('connected', () => {
-      logger.info('🟢 MongoDB connection established successfully');
-    });
+    if (!mongoose.connection.listeners('connected').length) {
+      mongoose.connection.on('connected', () => {
+        logger.info('🟢 MongoDB connection established successfully');
+      });
 
-    mongoose.connection.on('error', (err) => {
-      logger.error('🔴 MongoDB connection error:', err);
-    });
+      mongoose.connection.on('error', (err) => {
+        logger.error('🔴 MongoDB connection error:', err);
+      });
 
-    mongoose.connection.on('disconnected', () => {
-      logger.warn('🟡 MongoDB disconnected');
-    });
+      mongoose.connection.on('disconnected', () => {
+        logger.warn('🟡 MongoDB disconnected');
+      });
+    }
 
     await mongoose.connect(env.MONGODB_URI, {
-      serverSelectionTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 30000,
     });
   } catch (error) {
-    logger.error('❌ Database connection failure. Please verify MONGODB_URI on Render and MongoDB Atlas Network Access (IP Whitelist 0.0.0.0/0):', error);
+    logger.error(`❌ Database connection failure (retries left: ${retries}):`, error);
+    if (retries > 0) {
+      logger.info(`🔄 Retrying MongoDB connection in ${delayMs / 1000}s...`);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      return connectDatabase(retries - 1, Math.round(delayMs * 1.5));
+    }
   }
 };
 
