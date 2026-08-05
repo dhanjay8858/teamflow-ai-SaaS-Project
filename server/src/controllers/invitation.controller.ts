@@ -1,8 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { workspaceInvitationService, WorkspaceInvitationService } from '../services/invitation.service.js';
+import { emailService } from '../services/email.service.js';
 import { ApiResponse } from '../utils/apiResponse.js';
 import { AppError } from '../utils/appError.js';
-
 import { env } from '../config/env.config.js';
 
 export class WorkspaceInvitationController {
@@ -12,15 +12,34 @@ export class WorkspaceInvitationController {
     try {
       if (!req.user?.userId) throw AppError.unauthorized();
 
-      const { invitation, rawToken } = await this.service.createInvitation(req.user.userId, req.body);
+      const { invitation, rawToken, emailSent, emailError } = await this.service.createInvitation(req.user.userId, req.body);
       return ApiResponse.created({
         res,
-        message: 'Workspace invitation created successfully',
+        message: emailSent
+          ? 'Workspace invitation created and delivered to recipient email!'
+          : `Workspace invitation created, but email status: ${emailError || 'SMTP not configured'}`,
         data: {
           invitation,
           invitationLink: `${env.CLIENT_URL}/invitations/accept?token=${rawToken}`,
+          emailSent,
+          emailError,
           token: rawToken,
         },
+      });
+    } catch (error) {
+      return next(error);
+    }
+  };
+
+  public testEmail = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
+    try {
+      const targetEmail = (req.query.email || req.body?.email || req.user?.email || 'test@example.com') as string;
+      const result = await emailService.sendTestEmail(targetEmail);
+
+      return ApiResponse.success({
+        res,
+        message: result.message,
+        data: result,
       });
     } catch (error) {
       return next(error);

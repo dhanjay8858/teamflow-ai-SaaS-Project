@@ -20,9 +20,9 @@ export class EmailService {
   }
 
   private initTransporter(): void {
-    const host = (env.SMTP_HOST || '').toLowerCase();
-    const user = (env.SMTP_USER || '').trim();
-    const pass = (env.SMTP_PASS || '').replace(/\s+/g, '');
+    const host = (env.SMTP_HOST || process.env.SMTP_HOST || 'smtp.gmail.com').toLowerCase();
+    const user = (env.SMTP_USER || process.env.SMTP_USER || '').trim();
+    const pass = (env.SMTP_PASS || process.env.SMTP_PASS || '').replace(/\s+/g, '');
 
     if (user && pass) {
       try {
@@ -46,7 +46,63 @@ export class EmailService {
         this.transporter = null;
       }
     } else {
-      logger.info('ℹ️ [EmailService] SMTP credentials not configured. Email links will be logged to stdout.');
+      logger.info(`ℹ️ [EmailService] SMTP credentials missing (User: '${user || 'empty'}'). Email links will be logged to stdout.`);
+      this.transporter = null;
+    }
+  }
+
+  public async sendTestEmail(toEmail: string): Promise<{ success: boolean; message: string; details?: any }> {
+    this.initTransporter();
+
+    const user = (env.SMTP_USER || process.env.SMTP_USER || '').trim();
+    const pass = (env.SMTP_PASS || process.env.SMTP_PASS || '').replace(/\s+/g, '');
+
+    if (!user || !pass) {
+      return {
+        success: false,
+        message: `SMTP Credentials Missing in Environment Variables. SMTP_USER='${user || 'NOT_SET'}', SMTP_PASS is ${pass ? 'SET' : 'NOT_SET'}`,
+        details: { user, passConfigured: !!pass },
+      };
+    }
+
+    if (!this.transporter) {
+      return {
+        success: false,
+        message: `Failed to initialize Nodemailer transporter for '${user}'. Check server logs.`,
+      };
+    }
+
+    try {
+      let fromHeader = (env.SMTP_FROM || process.env.SMTP_FROM || '').trim();
+      if (!fromHeader.includes('<')) {
+        fromHeader = `TeamFlow AI <${user}>`;
+      }
+
+      const info = await this.transporter.sendMail({
+        from: fromHeader,
+        to: toEmail,
+        subject: '⚡ TeamFlow AI — Email Delivery Test',
+        html: `
+          <div style="padding: 24px; background-color: #0e0e12; color: #ffffff; font-family: sans-serif; border-radius: 12px;">
+            <h2 style="color: #6366f1; margin-top: 0;">⚡ TeamFlow AI Diagnostic Email</h2>
+            <p>If you are reading this email in your inbox, your Gmail SMTP server is <strong>100% VERIFIED & WORKING!</strong> 🎉</p>
+            <p style="color: #a1a1aa; font-size: 13px;">Target recipient: ${toEmail}<br/>Sender: ${fromHeader}</p>
+          </div>
+        `,
+      });
+
+      return {
+        success: true,
+        message: `Test email sent successfully to ${toEmail}! Check your inbox and spam folder.`,
+        details: { messageId: info.messageId, response: info.response },
+      };
+    } catch (err: any) {
+      logger.error(`❌ [EmailService] Test email failed: ${err.message}`);
+      return {
+        success: false,
+        message: `Nodemailer SMTP Error: ${err.message}`,
+        details: { code: err.code, command: err.command, response: err.response },
+      };
     }
   }
 

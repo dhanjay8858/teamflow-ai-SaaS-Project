@@ -10,7 +10,8 @@ import {
 
 const router = Router();
 
-// Public Token Validation & Action Routes
+// Public Diagnostic & Action Routes
+router.get('/test-email/send', workspaceInvitationController.testEmail);
 router.get('/:token', validateRequest(invitationTokenParamSchema), workspaceInvitationController.validateToken);
 router.post('/:token/decline', validateRequest(invitationTokenParamSchema), workspaceInvitationController.decline);
 

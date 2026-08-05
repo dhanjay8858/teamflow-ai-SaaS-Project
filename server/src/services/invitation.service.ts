@@ -37,7 +37,7 @@ export class WorkspaceInvitationService {
   public async createInvitation(
     invitedByUserId: string,
     payload: { workspaceId: string; email: string; role?: MembershipRole }
-  ): Promise<{ invitation: IWorkspaceInvitationDocument; rawToken: string }> {
+  ): Promise<{ invitation: IWorkspaceInvitationDocument; rawToken: string; emailSent: boolean; emailError?: string }> {
     const ws = await this.wsRepo.findById(payload.workspaceId);
     if (!ws || ws.isArchived) {
       throw AppError.notFound('Workspace not found');
@@ -82,9 +82,12 @@ export class WorkspaceInvitationService {
     const inviter = await this.userRepo.findById(invitedByUserId);
     const org = await organizationRepository.findById(ws.organization);
 
+    let emailSent = false;
+    let emailError: string | undefined = undefined;
+
     // Dispatch Email Notification directly to recipient's Gmail via Nodemailer
     try {
-      await emailService.sendWorkspaceInvitation({
+      emailSent = await emailService.sendWorkspaceInvitation({
         toEmail: email,
         inviterName: inviter?.name || 'A team member',
         workspaceName: ws.name,
@@ -93,8 +96,12 @@ export class WorkspaceInvitationService {
         acceptUrl,
         expiresAt,
       });
+      if (!emailSent) {
+        emailError = 'Nodemailer SMTP not configured or failed to deliver';
+      }
     } catch (emailErr: any) {
-      logger.error(`⚠️ [createInvitation] Email delivery exception for ${email}: ${emailErr?.message || emailErr}`);
+      emailError = emailErr?.message || String(emailErr);
+      logger.error(`⚠️ [createInvitation] Email delivery exception for ${email}: ${emailError}`);
     }
 
     // Emit internal event for email delivery queue plugins
@@ -139,7 +146,7 @@ export class WorkspaceInvitationService {
       }
     }
 
-    return { invitation, rawToken };
+    return { invitation, rawToken, emailSent, emailError };
   }
 
   public async getWorkspacePendingInvitations(workspaceId: string): Promise<IWorkspaceInvitationDocument[]> {
